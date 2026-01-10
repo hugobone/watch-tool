@@ -1,8 +1,14 @@
 import streamlit as st
 import requests
 
-# CONFIGURATION
-API_KEY = "3887c95066e476906233267104be66e5"
+# CONFIGURATION - Now using Streamlit Secrets for safety
+# Make sure to add TMDB_API_KEY in your Streamlit Cloud settings!
+try:
+    API_KEY = st.secrets["TMDB_API_KEY"]
+except:
+    st.error("Missing API Key! Please add 'TMDB_API_KEY' to your Streamlit Secrets.")
+    st.stop()
+
 BASE_URL = "https://api.themoviedb.org/3"
 
 # STRICT LIST of your UK services
@@ -14,6 +20,7 @@ MY_SERVICES = [
 st.set_page_config(page_title="The Couple's Couch", layout="wide")
 st.title("🎬 The Couple's Couch: Maz & You")
 
+# Persistent Taste Profile logic can go here in the future
 if 'liked_ids' not in st.session_state:
     st.session_state.liked_ids = []
 if 'liked_names' not in st.session_state:
@@ -53,6 +60,10 @@ with st.sidebar:
                 st.rerun()
     st.write("---")
     st.write("**Taste Profile:**", ", ".join(st.session_state.liked_names))
+    if st.button("Reset Profile"):
+        st.session_state.liked_ids = []
+        st.session_state.liked_names = []
+        st.rerun()
 
 if st.session_state.liked_ids:
     if st.button("What's on Tonight?"):
@@ -68,6 +79,6 @@ if st.session_state.liked_ids:
                     st.write(r.get('overview'))
                 st.divider()
         else:
-            st.warning("No matches on your platforms yet. Add more shows!")
+            st.warning("No matches on your platforms yet. Add more variety!")
 else:
     st.info("👈 Use the sidebar to add a show you and Maz enjoyed.")
