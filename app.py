@@ -1,7 +1,9 @@
 import streamlit as st
 import requests
 import random
-from collections import Counter
+import json
+import os
+from pathlib import Path
 
 # --- 1. SETUP & SECRETS ---
 st.set_page_config(page_title="The Couple's Couch", page_icon="🍿", layout="wide")
@@ -21,14 +23,41 @@ MY_SERVICES = [
     "UKTV Play", "Paramount+", "Discovery+"
 ]
 
-MIN_VOTE_AVERAGE = 6.0  # Filter low-rated content
-MIN_VOTE_COUNT = 50     # Filter obscure content
+MIN_VOTE_AVERAGE = 6.0
+MIN_VOTE_COUNT = 50
 
-# --- 3. SESSION STATE ---
+# --- 3. PERSISTENT STORAGE ---
+DATA_FILE = Path("user_data.json")
+
+def load_user_data():
+    """Load saved data from file"""
+    if DATA_FILE.exists():
+        try:
+            with open(DATA_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('liked_items', []), data.get('watch_later', [])
+        except Exception as e:
+            st.warning(f"Couldn't load saved data: {e}")
+    return [], []
+
+def save_user_data():
+    """Save data to file"""
+    try:
+        data = {
+            'liked_items': st.session_state.liked_items,
+            'watch_later': st.session_state.watch_later
+        }
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        st.error(f"Couldn't save data: {e}")
+
+# Initialize session state with saved data
 if 'liked_items' not in st.session_state:
-    st.session_state.liked_items = []  # Store dicts with id, name, media_type
-if 'watch_later' not in st.session_state:
-    st.session_state.watch_later = []
+    liked, watch_later = load_user_data()
+    st.session_state.liked_items = liked
+    st.session_state.watch_later = watch_later
+    st.session_state.data_loaded = True
 
 # --- 4. CACHING & API FUNCTIONS ---
 @st.cache_data(ttl=3600)
@@ -53,12 +82,10 @@ def get_uk_providers(item_id, media_type):
         data = resp.json()
         uk_data = data.get('results', {}).get('GB', {})
         
-        # Combine all streaming options
         options = (uk_data.get('flatrate', []) + 
                   uk_data.get('free', []) + 
                   uk_data.get('ads', []))
         
-        # Return matching providers
         return [p['provider_name'] for p in options if p['provider_name'] in MY_SERVICES]
     except Exception as e:
         return []
@@ -72,7 +99,6 @@ def get_recommendations_multi_seed():
     all_fallback = []
     seen_ids = set()
     
-    # Use up to 3 most recent liked items as seeds
     seeds = st.session_state.liked_items[-3:]
     
     for seed in seeds:
@@ -86,23 +112,19 @@ def get_recommendations_multi_seed():
             resp.raise_for_status()
             results = resp.json().get('results', [])
             
-            for item in results[:15]:  # Check top 15 from each seed
-                # Skip duplicates
+            for item in results[:15]:
                 if item['id'] in seen_ids:
                     continue
                 seen_ids.add(item['id'])
                 
-                # Filter quality
                 if item.get('vote_average', 0) < MIN_VOTE_AVERAGE:
                     continue
                 if item.get('vote_count', 0) < MIN_VOTE_COUNT:
                     continue
                 
-                # Store metadata
                 item['media_type'] = media_type
                 item['seed_name'] = seed['name']
                 
-                # Check providers
                 providers = get_uk_providers(item['id'], media_type)
                 
                 if providers:
@@ -115,7 +137,6 @@ def get_recommendations_multi_seed():
             st.warning(f"Couldn't get recommendations from {seed['name']}: {e}")
             continue
     
-    # Sort by vote average
     all_valid.sort(key=lambda x: x.get('vote_average', 0), reverse=True)
     all_fallback.sort(key=lambda x: x.get('vote_average', 0), reverse=True)
     
@@ -153,6 +174,7 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
             if st.button(f"➕ Add to Watch Later", key=f"wl_{item_key}"):
                 if item not in st.session_state.watch_later:
                     st.session_state.watch_later.append(item)
+                    save_user_data()
                     st.success("Added to Watch Later!")
                     st.rerun()
 
@@ -175,7 +197,6 @@ with st.sidebar:
                 date = item.get('first_air_date') or item.get('release_date') or "Unknown"
                 media_type = item.get('media_type', 'unknown')
                 
-                # Show poster thumbnail
                 if item.get('poster_path'):
                     st.image(f"https://image.tmdb.org/t/p/w92{item['poster_path']}", width=50)
                 
@@ -187,9 +208,9 @@ with st.sidebar:
                     }
                     if new_item not in st.session_state.liked_items:
                         st.session_state.liked_items.append(new_item)
+                        save_user_data()
                         st.rerun()
     
-    # Display liked items
     if st.session_state.liked_items:
         st.divider()
         st.write("**Your Taste Profile:**")
@@ -200,13 +221,14 @@ with st.sidebar:
             with col2:
                 if st.button("❌", key=f"remove_{idx}"):
                     st.session_state.liked_items.pop(idx)
+                    save_user_data()
                     st.rerun()
         
         if st.button("🗑️ Clear All", type="secondary"):
             st.session_state.liked_items = []
+            save_user_data()
             st.rerun()
     
-    # Watch Later section
     if st.session_state.watch_later:
         st.divider()
         st.write("**📌 Watch Later:**")
@@ -218,6 +240,7 @@ with st.sidebar:
             with col2:
                 if st.button("❌", key=f"wl_remove_{idx}"):
                     st.session_state.watch_later.pop(idx)
+                    save_user_data()
                     st.rerun()
 
 # MAIN AREA - RECOMMENDATIONS
@@ -236,7 +259,6 @@ if st.session_state.liked_items:
         with st.spinner("Finding your perfect match..."):
             valid, fallback = get_recommendations_multi_seed()
             
-            # Apply filter
             if filter_providers:
                 final_list = valid
                 is_fallback = False
@@ -248,7 +270,6 @@ if st.session_state.liked_items:
                 st.error("😕 No recommendations found. Try adding more shows to your profile!")
             
             else:
-                # LUCKY PICK MODE
                 if lucky_btn:
                     winner = random.choice(final_list)
                     st.balloons()
@@ -256,7 +277,6 @@ if st.session_state.liked_items:
                     
                     render_item_card(winner, show_seed=True, show_add_to_watchlist=False)
                     
-                # BROWSE MODE
                 else:
                     if filter_providers and valid:
                         st.success(f"✨ Found {len(valid)} great matches on your services!")
@@ -277,4 +297,6 @@ else:
     2. **Add them** to build your taste profile  
     3. **Get recommendations** tailored to what you actually have access to
     4. **Pick randomly** when you can't decide, or browse the full list
+    
+    💾 *Your profile is saved automatically and will be here next time!*
     """)
