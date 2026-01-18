@@ -2,8 +2,6 @@ import streamlit as st
 import requests
 import random
 import json
-import os
-from pathlib import Path
 
 # --- 1. SETUP & SECRETS ---
 st.set_page_config(page_title="The Couple's Couch", page_icon="🍿", layout="wide")
@@ -26,38 +24,40 @@ MY_SERVICES = [
 MIN_VOTE_AVERAGE = 6.0
 MIN_VOTE_COUNT = 50
 
-# --- 3. PERSISTENT STORAGE ---
-DATA_FILE = Path("user_data.json")
-
-def load_user_data():
-    """Load saved data from file"""
-    if DATA_FILE.exists():
+# --- 3. PERSISTENT STORAGE USING QUERY PARAMS ---
+def load_from_url():
+    """Load data from URL query parameters"""
+    params = st.query_params
+    liked_items = []
+    watch_later = []
+    
+    if 'liked' in params:
         try:
-            with open(DATA_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get('liked_items', []), data.get('watch_later', [])
-        except Exception as e:
-            st.warning(f"Couldn't load saved data: {e}")
-    return [], []
+            liked_items = json.loads(params['liked'])
+        except:
+            pass
+    
+    if 'watchlater' in params:
+        try:
+            watch_later = json.loads(params['watchlater'])
+        except:
+            pass
+    
+    return liked_items, watch_later
 
-def save_user_data():
-    """Save data to file"""
+def save_to_url():
+    """Save data to URL query parameters"""
     try:
-        data = {
-            'liked_items': st.session_state.liked_items,
-            'watch_later': st.session_state.watch_later
-        }
-        with open(DATA_FILE, 'w') as f:
-            json.dump(data, f)
+        st.query_params['liked'] = json.dumps(st.session_state.liked_items)
+        st.query_params['watchlater'] = json.dumps(st.session_state.watch_later)
     except Exception as e:
-        st.error(f"Couldn't save data: {e}")
+        pass
 
-# Initialize session state with saved data
+# Initialize session state
 if 'liked_items' not in st.session_state:
-    liked, watch_later = load_user_data()
+    liked, watch_later = load_from_url()
     st.session_state.liked_items = liked
     st.session_state.watch_later = watch_later
-    st.session_state.data_loaded = True
 
 # --- 4. CACHING & API FUNCTIONS ---
 @st.cache_data(ttl=3600)
@@ -185,12 +185,12 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                     new_item = {
                         'id': item['id'],
                         'name': title,
-                        'media_type': item.get('media_type', 'movie')  # Default to movie if unknown
+                        'media_type': item.get('media_type', 'movie')
                     }
                     # Check if not already in profile
                     if not any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items):
                         st.session_state.liked_items.append(new_item)
-                        save_user_data()
+                        save_to_url()
                         st.success(f"✅ Added '{title}' to your taste profile!")
                         st.rerun()
                     else:
@@ -201,7 +201,7 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                     # Check if not already in watch later
                     if not any(wl['id'] == item['id'] for wl in st.session_state.watch_later):
                         st.session_state.watch_later.append(item)
-                        save_user_data()
+                        save_to_url()
                         st.success("Added to Watch Later!")
                         st.rerun()
 
@@ -235,7 +235,7 @@ with st.sidebar:
                     }
                     if new_item not in st.session_state.liked_items:
                         st.session_state.liked_items.append(new_item)
-                        save_user_data()
+                        save_to_url()
                         st.rerun()
     
     if st.session_state.liked_items:
@@ -248,12 +248,12 @@ with st.sidebar:
             with col2:
                 if st.button("❌", key=f"remove_{idx}"):
                     st.session_state.liked_items.pop(idx)
-                    save_user_data()
+                    save_to_url()
                     st.rerun()
         
         if st.button("🗑️ Clear All", type="secondary"):
             st.session_state.liked_items = []
-            save_user_data()
+            save_to_url()
             st.rerun()
     
     if st.session_state.watch_later:
@@ -267,7 +267,7 @@ with st.sidebar:
             with col2:
                 if st.button("❌", key=f"wl_remove_{idx}"):
                     st.session_state.watch_later.pop(idx)
-                    save_user_data()
+                    save_to_url()
                     st.rerun()
 
 # MAIN AREA - RECOMMENDATIONS
