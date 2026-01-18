@@ -25,6 +25,8 @@ MIN_VOTE_AVERAGE = 6.0
 MIN_VOTE_COUNT = 50
 
 # --- 3. PERSISTENT STORAGE USING QUERY PARAMS ---
+import base64
+
 def load_from_url():
     """Load data from URL query parameters"""
     params = st.query_params
@@ -33,25 +35,32 @@ def load_from_url():
     
     if 'liked' in params:
         try:
-            liked_items = json.loads(params['liked'])
+            decoded = base64.b64decode(params['liked']).decode('utf-8')
+            liked_items = json.loads(decoded)
         except:
             pass
     
     if 'watchlater' in params:
         try:
-            watch_later = json.loads(params['watchlater'])
+            decoded = base64.b64decode(params['watchlater']).decode('utf-8')
+            watch_later = json.loads(decoded)
         except:
             pass
     
     return liked_items, watch_later
 
 def save_to_url():
-    """Save data to URL query parameters"""
+    """Save data to URL query parameters using base64 encoding"""
     try:
-        st.query_params['liked'] = json.dumps(st.session_state.liked_items)
-        st.query_params['watchlater'] = json.dumps(st.session_state.watch_later)
+        liked_json = json.dumps(st.session_state.liked_items)
+        liked_b64 = base64.b64encode(liked_json.encode('utf-8')).decode('utf-8')
+        st.query_params['liked'] = liked_b64
+        
+        watchlater_json = json.dumps(st.session_state.watch_later)
+        watchlater_b64 = base64.b64encode(watchlater_json.encode('utf-8')).decode('utf-8')
+        st.query_params['watchlater'] = watchlater_b64
     except Exception as e:
-        pass
+        st.error(f"Save error: {e}")
 
 # Initialize session state
 if 'liked_items' not in st.session_state:
