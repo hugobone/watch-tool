@@ -67,6 +67,10 @@ if 'liked_items' not in st.session_state:
     liked, watch_later = load_from_url()
     st.session_state.liked_items = liked
     st.session_state.watch_later = watch_later
+if 'recommendations' not in st.session_state:
+    st.session_state.recommendations = None
+if 'show_lucky' not in st.session_state:
+    st.session_state.show_lucky = False
 
 # --- 4. CACHING & API FUNCTIONS ---
 @st.cache_data(ttl=3600)
@@ -296,45 +300,51 @@ if st.session_state.liked_items:
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        search_btn = st.button("🔎 Find Matches", type="primary", use_container_width=True)
+        if st.button("🔎 Find Matches", type="primary", use_container_width=True):
+            with st.spinner("Finding your perfect match..."):
+                valid, fallback = get_recommendations_multi_seed()
+                st.session_state.recommendations = (valid, fallback)
+                st.session_state.show_lucky = False
     with col2:
-        lucky_btn = st.button("🎲 Pick for Us", type="secondary", use_container_width=True)
+        if st.button("🎲 Pick for Us", type="secondary", use_container_width=True):
+            with st.spinner("Finding your perfect match..."):
+                valid, fallback = get_recommendations_multi_seed()
+                st.session_state.recommendations = (valid, fallback)
+                st.session_state.show_lucky = True
     with col3:
         filter_providers = st.checkbox("Only my services", value=True)
 
-    if search_btn or lucky_btn:
-        with st.spinner("Finding your perfect match..."):
-            valid, fallback = get_recommendations_multi_seed()
-            
-            if filter_providers:
-                final_list = valid
-                is_fallback = False
+    # Display recommendations if they exist
+    if st.session_state.recommendations:
+        valid, fallback = st.session_state.recommendations
+        
+        if filter_providers:
+            final_list = valid
+        else:
+            final_list = valid + fallback
+        
+        if not final_list:
+            st.error("😕 No recommendations found. Try adding more shows to your profile!")
+        
+        else:
+            if st.session_state.show_lucky:
+                winner = random.choice(final_list)
+                st.balloons()
+                st.header(f"🏆 Tonight's Pick: {winner.get('name') or winner.get('title')}")
+                
+                render_item_card(winner, show_seed=True, show_add_to_watchlist=False)
+                
             else:
-                final_list = valid + fallback
-                is_fallback = False
-            
-            if not final_list:
-                st.error("😕 No recommendations found. Try adding more shows to your profile!")
-            
-            else:
-                if lucky_btn:
-                    winner = random.choice(final_list)
-                    st.balloons()
-                    st.header(f"🏆 Tonight's Pick: {winner.get('name') or winner.get('title')}")
-                    
-                    render_item_card(winner, show_seed=True, show_add_to_watchlist=False)
-                    
+                if filter_providers and valid:
+                    st.success(f"✨ Found {len(valid)} great matches on your services!")
+                elif not filter_providers:
+                    st.info(f"📺 Showing {len(final_list)} recommendations (including rentals)")
                 else:
-                    if filter_providers and valid:
-                        st.success(f"✨ Found {len(valid)} great matches on your services!")
-                    elif not filter_providers:
-                        st.info(f"📺 Showing {len(final_list)} recommendations (including rentals)")
-                    else:
-                        st.warning("⚠️ No exact matches on your services. Uncheck 'Only my services' to see more.")
-                    
-                    for item in final_list:
-                        render_item_card(item, show_seed=True)
-                        st.divider()
+                    st.warning("⚠️ No exact matches on your services. Uncheck 'Only my services' to see more.")
+                
+                for item in final_list:
+                    render_item_card(item, show_seed=True)
+                    st.divider()
 
 else:
     st.info("👈 **Get started:** Search and add shows you like in the sidebar!")
