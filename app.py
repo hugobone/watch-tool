@@ -201,24 +201,16 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                         'media_type': item.get('media_type', 'movie')
                     }
                     
-                    # Debug: Show what we're trying to add
-                    st.write(f"DEBUG: Trying to add {new_item}")
-                    st.write(f"DEBUG: Current profile has {len(st.session_state.liked_items)} items")
-                    
                     # Check if not already in profile
                     already_exists = any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items)
-                    st.write(f"DEBUG: Already exists? {already_exists}")
                     
                     if not already_exists:
                         st.session_state.liked_items.append(new_item)
-                        st.write(f"DEBUG: Added! Profile now has {len(st.session_state.liked_items)} items")
                         save_to_url()
-                        st.write("DEBUG: Saved to URL")
-                        st.success(f"✅ Added '{title}' to your taste profile!")
-                        st.write("DEBUG: About to rerun...")
+                        st.toast(f"✅ '{title}' added to your profile!", icon="✅")
                         st.rerun()
                     else:
-                        st.info(f"'{title}' is already in your profile")
+                        st.toast(f"'{title}' is already in your profile", icon="ℹ️")
             
             with btn_col2:
                 if st.button(f"📌 Watch Later", key=f"wl_{item_key}"):
@@ -226,8 +218,10 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                     if not any(wl['id'] == item['id'] for wl in st.session_state.watch_later):
                         st.session_state.watch_later.append(item)
                         save_to_url()
-                        st.success("Added to Watch Later!")
+                        st.toast(f"📌 '{title}' added to Watch Later!", icon="📌")
                         st.rerun()
+                    else:
+                        st.toast(f"'{title}' is already in Watch Later", icon="ℹ️")
 
 # --- 6. MAIN INTERFACE ---
 st.title("🍿 The Couple's Couch")
@@ -260,7 +254,10 @@ with st.sidebar:
                     if new_item not in st.session_state.liked_items:
                         st.session_state.liked_items.append(new_item)
                         save_to_url()
+                        st.toast(f"✅ '{name}' added to your profile!", icon="✅")
                         st.rerun()
+                    else:
+                        st.toast(f"'{name}' is already in your profile", icon="ℹ️")
     
     if st.session_state.liked_items:
         st.divider()
