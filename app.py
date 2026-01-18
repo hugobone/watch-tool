@@ -191,8 +191,9 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                     if not any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items):
                         st.session_state.liked_items.append(new_item)
                         save_user_data()
-                        st.success("Added to your taste profile!")
-                        st.rerun()
+                        st.toast(f"✅ Added '{title}' to your taste profile!", icon="✅")
+                    else:
+                        st.toast(f"'{title}' is already in your profile", icon="ℹ️")
             
             with btn_col2:
                 if st.button(f"📌 Watch Later", key=f"wl_{item_key}"):
