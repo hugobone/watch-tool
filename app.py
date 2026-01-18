@@ -99,6 +99,9 @@ def get_recommendations_multi_seed():
     all_fallback = []
     seen_ids = set()
     
+    # Get IDs of already liked items to filter them out
+    liked_ids = {item['id'] for item in st.session_state.liked_items}
+    
     seeds = st.session_state.liked_items[-3:]
     
     for seed in seeds:
@@ -113,7 +116,8 @@ def get_recommendations_multi_seed():
             results = resp.json().get('results', [])
             
             for item in results[:15]:
-                if item['id'] in seen_ids:
+                # Skip if already in seen or already liked
+                if item['id'] in seen_ids or item['id'] in liked_ids:
                     continue
                 seen_ids.add(item['id'])
                 
@@ -171,12 +175,33 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
         
         if show_add_to_watchlist:
             item_key = f"{item['id']}_{item.get('media_type', 'unknown')}"
-            if st.button(f"➕ Add to Watch Later", key=f"wl_{item_key}"):
-                if item not in st.session_state.watch_later:
-                    st.session_state.watch_later.append(item)
-                    save_user_data()
-                    st.success("Added to Watch Later!")
-                    st.rerun()
+            
+            # Create button row
+            btn_col1, btn_col2 = st.columns(2)
+            
+            with btn_col1:
+                if st.button(f"✅ Already Watched", key=f"watched_{item_key}"):
+                    # Add to taste profile
+                    new_item = {
+                        'id': item['id'],
+                        'name': title,
+                        'media_type': item.get('media_type', 'unknown')
+                    }
+                    # Check if not already in profile
+                    if not any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items):
+                        st.session_state.liked_items.append(new_item)
+                        save_user_data()
+                        st.success("Added to your taste profile!")
+                        st.rerun()
+            
+            with btn_col2:
+                if st.button(f"📌 Watch Later", key=f"wl_{item_key}"):
+                    # Check if not already in watch later
+                    if not any(wl['id'] == item['id'] for wl in st.session_state.watch_later):
+                        st.session_state.watch_later.append(item)
+                        save_user_data()
+                        st.success("Added to Watch Later!")
+                        st.rerun()
 
 # --- 6. MAIN INTERFACE ---
 st.title("🍿 The Couple's Couch")
