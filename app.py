@@ -185,15 +185,16 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                     new_item = {
                         'id': item['id'],
                         'name': title,
-                        'media_type': item.get('media_type', 'unknown')
+                        'media_type': item.get('media_type', 'movie')  # Default to movie if unknown
                     }
                     # Check if not already in profile
                     if not any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items):
                         st.session_state.liked_items.append(new_item)
                         save_user_data()
-                        st.toast(f"✅ Added '{title}' to your taste profile!", icon="✅")
+                        st.success(f"✅ Added '{title}' to your taste profile!")
+                        st.rerun()
                     else:
-                        st.toast(f"'{title}' is already in your profile", icon="ℹ️")
+                        st.info(f"'{title}' is already in your profile")
             
             with btn_col2:
                 if st.button(f"📌 Watch Later", key=f"wl_{item_key}"):
