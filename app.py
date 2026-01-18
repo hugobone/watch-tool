@@ -196,11 +196,22 @@ def render_item_card(item, show_seed=False, show_add_to_watchlist=True):
                         'name': title,
                         'media_type': item.get('media_type', 'movie')
                     }
+                    
+                    # Debug: Show what we're trying to add
+                    st.write(f"DEBUG: Trying to add {new_item}")
+                    st.write(f"DEBUG: Current profile has {len(st.session_state.liked_items)} items")
+                    
                     # Check if not already in profile
-                    if not any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items):
+                    already_exists = any(liked['id'] == new_item['id'] for liked in st.session_state.liked_items)
+                    st.write(f"DEBUG: Already exists? {already_exists}")
+                    
+                    if not already_exists:
                         st.session_state.liked_items.append(new_item)
+                        st.write(f"DEBUG: Added! Profile now has {len(st.session_state.liked_items)} items")
                         save_to_url()
+                        st.write("DEBUG: Saved to URL")
                         st.success(f"✅ Added '{title}' to your taste profile!")
+                        st.write("DEBUG: About to rerun...")
                         st.rerun()
                     else:
                         st.info(f"'{title}' is already in your profile")
